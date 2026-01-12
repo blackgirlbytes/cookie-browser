@@ -1,0 +1,56 @@
+{
+  "name": "cookie-browser",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A cozy, handcrafted web browser",
+  "main": "dist-electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && npm run electron:compile",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "electron:compile": "tsc -p tsconfig.electron.json && cd dist-electron && for f in *.js; do mv \"$f\" \"${f%.js}.cjs\"; done",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
+    "electron:start": "electron .",
+    "electron:build": "npm run build && electron-builder",
+    "test:browser": "node test-browser.cjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.4.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "playwright": "^1.57.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.4",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "com.cookie.browser",
+    "productName": "Cookie Browser",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    }
+  }
+}

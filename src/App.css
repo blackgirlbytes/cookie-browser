@@ -1,0 +1,17 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-gradient);
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-gradient);
+}
+
+/* When BrowserView is active, content area is empty */
+.content:empty {
+  display: none;
+}
