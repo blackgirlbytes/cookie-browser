@@ -1,14 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { TabBar, type Tab } from './components/TabBar';
 import { Toolbar } from './components/Toolbar';
+import { BreadcrumbsPopover } from './components/BreadcrumbsPopover';
 import { NewTabPage } from './pages/NewTabPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { HistoryPage, addHistoryEntry } from './pages/HistoryPage';
 import { SettingsPage, getCurrentTheme } from './pages/SettingsPage';
+import { CookieJarPage } from './pages/CookieJarPage';
+import { addToJar } from './utils/cookieJar';
+import { addCrumb, clearTrail, exportTrail, getTrail, setTrail, type Breadcrumb } from './utils/breadcrumbs';
 import './App.css';
 import './types/electron.d.ts';
 
-type InternalPage = 'newtab' | 'bookmarks' | 'history' | 'settings' | null;
+type InternalPage = 'newtab' | 'bookmarks' | 'history' | 'settings' | 'jar' | null;
 
 interface HistoryEntry {
   url: string;
@@ -29,6 +33,14 @@ function App() {
   ]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const isNavigatingRef = useRef(false); // Prevent adding to history during back/forward
+  
+  // Breadcrumbs state
+  const [showBreadcrumbs, setShowBreadcrumbs] = useState(false);
+
+  // Initialize breadcrumbs for the first tab
+  useEffect(() => {
+    addCrumb('1', 'cookie://newtab', 'New Tab');
+  }, []);
 
   // Apply saved theme on load
   useEffect(() => {
@@ -67,6 +79,9 @@ function App() {
         newStack.push({ url: data.url, title: data.title });
         setHistoryStack(newStack);
         setHistoryIndex(newStack.length - 1);
+        
+        // Add to breadcrumbs trail for this tab
+        addCrumb(activeTabId, data.url, data.title);
         
         // Also add to persistent browsing history
         addHistoryEntry(data.title, data.url);
@@ -112,6 +127,7 @@ function App() {
     if (url === 'cookie://bookmarks') return 'bookmarks';
     if (url === 'cookie://history') return 'history';
     if (url === 'cookie://settings') return 'settings';
+    if (url === 'cookie://jar') return 'jar';
     return null;
   };
 
@@ -121,6 +137,7 @@ function App() {
       case 'bookmarks': return 'Bookmarks';
       case 'history': return 'History';
       case 'settings': return 'Settings';
+      case 'jar': return 'Cookie Jar';
       default: return 'Cookie Browser';
     }
   };
@@ -174,11 +191,14 @@ function App() {
       
       setHistoryStack(newStack);
       setHistoryIndex(newStack.length - 1);
+      
+      // Add to breadcrumbs trail for internal pages
+      addCrumb(activeTabId, url, title);
     }
     
     // Show the URL
     await showUrl(url, title);
-  }, [historyStack, historyIndex, showUrl]);
+  }, [historyStack, historyIndex, showUrl, activeTabId]);
 
   const handleTabClick = useCallback((tabId: string) => {
     setActiveTabId(tabId);
@@ -201,13 +221,29 @@ function App() {
   }, [tabs]);
 
   const handleTabClose = useCallback((tabId: string) => {
+    // Find the tab being closed to save to Cookie Jar
+    const closingTab = tabs.find((t) => t.id === tabId);
+    
+    // Save to Cookie Jar (unless it's a new tab or internal page)
+    if (closingTab && closingTab.url !== 'cookie://newtab') {
+      // Export breadcrumbs trail before saving to Cookie Jar
+      const breadcrumbs = exportTrail(tabId);
+      addToJar(closingTab.url, closingTab.title, closingTab.favicon, breadcrumbs);
+    }
+    
+    // Clear breadcrumbs for the closed tab
+    clearTrail(tabId);
+    
     if (tabs.length === 1) {
-      setTabs([{ id: '1', title: 'New Tab', url: 'cookie://newtab' }]);
-      setActiveTabId('1');
+      const newTabId = Date.now().toString();
+      setTabs([{ id: newTabId, title: 'New Tab', url: 'cookie://newtab' }]);
+      setActiveTabId(newTabId);
       setInternalPage('newtab');
       setCurrentUrl('cookie://newtab');
       setHistoryStack([{ url: 'cookie://newtab', title: 'New Tab' }]);
       setHistoryIndex(0);
+      // Initialize breadcrumbs for the new tab
+      addCrumb(newTabId, 'cookie://newtab', 'New Tab');
       if (window.electronAPI) {
         window.electronAPI.closeBrowserView();
       }
@@ -251,6 +287,8 @@ function App() {
     setCurrentUrl('cookie://newtab');
     setHistoryStack([{ url: 'cookie://newtab', title: 'New Tab' }]);
     setHistoryIndex(0);
+    // Initialize breadcrumbs for the new tab
+    addCrumb(newTab.id, 'cookie://newtab', 'New Tab');
     if (window.electronAPI) {
       window.electronAPI.closeBrowserView();
     }
@@ -324,6 +362,46 @@ function App() {
     navigateToUrl('cookie://settings');
   }, [navigateToUrl]);
 
+  const handleCookieJar = useCallback(() => {
+    navigateToUrl('cookie://jar');
+  }, [navigateToUrl]);
+
+  const handleBreadcrumbs = useCallback(() => {
+    setShowBreadcrumbs((prev) => !prev);
+  }, []);
+
+  // Restore a tab from the Cookie Jar
+  const handleRestoreTab = useCallback((url: string, title: string, favicon?: string, breadcrumbs?: Breadcrumb[]) => {
+    const newTab: Tab = {
+      id: Date.now().toString(),
+      title,
+      url,
+      favicon,
+    };
+    setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+    
+    const internal = parseInternalUrl(url);
+    setInternalPage(internal);
+    setCurrentUrl(url);
+    setHistoryStack([{ url, title }]);
+    setHistoryIndex(0);
+    
+    // Restore breadcrumbs trail if available
+    if (breadcrumbs && breadcrumbs.length > 0) {
+      setTrail(newTab.id, breadcrumbs);
+    } else {
+      // Initialize with current page if no breadcrumbs
+      addCrumb(newTab.id, url, title);
+    }
+    
+    if (!internal && window.electronAPI) {
+      window.electronAPI.navigateToUrl(url);
+    } else if (internal && window.electronAPI) {
+      window.electronAPI.closeBrowserView();
+    }
+  }, []);
+
   const renderInternalPage = () => {
     switch (internalPage) {
       case 'newtab':
@@ -334,6 +412,8 @@ function App() {
         return <HistoryPage onNavigate={navigateToUrl} />;
       case 'settings':
         return <SettingsPage />;
+      case 'jar':
+        return <CookieJarPage onNavigate={navigateToUrl} onRestoreTab={handleRestoreTab} />;
       default:
         return null;
     }
@@ -362,12 +442,21 @@ function App() {
         onBookmarks={handleBookmarks}
         onHistory={handleHistory}
         onSettings={handleSettings}
+        onCookieJar={handleCookieJar}
+        onBreadcrumbs={handleBreadcrumbs}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
       />
       <main className="content">
         {internalPage && renderInternalPage()}
       </main>
+      {showBreadcrumbs && (
+        <BreadcrumbsPopover
+          trail={getTrail(activeTabId)}
+          onNavigate={navigateToUrl}
+          onClose={() => setShowBreadcrumbs(false)}
+        />
+      )}
     </div>
   );
 }
