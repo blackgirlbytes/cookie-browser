@@ -3,6 +3,7 @@ import './SettingsPage.css';
 
 interface Settings {
   theme: 'pink' | 'lavender' | 'mint' | 'golden';
+  useCustomRenderer: boolean;
 }
 
 const STORAGE_KEY = 'cookie-settings';
@@ -17,13 +18,18 @@ const themes = [
 export const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<Settings>({
     theme: 'pink',
+    useCustomRenderer: false,
   });
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        setSettings(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        setSettings({
+          theme: parsed.theme || 'pink',
+          useCustomRenderer: parsed.useCustomRenderer || false,
+        });
       } catch (e) {
         console.error('Failed to parse settings:', e);
       }
@@ -66,6 +72,34 @@ export const SettingsPage: React.FC = () => {
                 />
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className="settings-section card">
+          <h2>🎨 Rendering Engine</h2>
+          <p className="section-description">
+            Cookie Browser includes a custom rendering engine for internal pages.
+            Enable it to see pages rendered with our handcrafted engine!
+          </p>
+          <div className="toggle-setting">
+            <label className="toggle-label" htmlFor="custom-renderer-toggle">
+              <span className="toggle-text">Use Custom Rendering Engine</span>
+              <span className="toggle-hint">
+                {settings.useCustomRenderer 
+                  ? '✨ Using Cookie\'s custom engine' 
+                  : '🌐 Using standard React rendering'}
+              </span>
+            </label>
+            <button
+              id="custom-renderer-toggle"
+              data-testid="custom-renderer-toggle"
+              className={`toggle-switch ${settings.useCustomRenderer ? 'toggle-on' : 'toggle-off'}`}
+              onClick={() => updateSettings({ useCustomRenderer: !settings.useCustomRenderer })}
+              role="switch"
+              aria-checked={settings.useCustomRenderer}
+            >
+              <span className="toggle-slider" />
+            </button>
           </div>
         </section>
 
@@ -124,4 +158,18 @@ export const getCurrentTheme = (): string => {
     }
   }
   return 'pink';
+};
+
+// Helper to check if custom renderer is enabled
+export const isCustomRendererEnabled = (): boolean => {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const settings = JSON.parse(stored);
+      return settings.useCustomRenderer || false;
+    } catch (e) {
+      return false;
+    }
+  }
+  return false;
 };

@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { TabBar, type Tab } from './components/TabBar';
 import { Toolbar } from './components/Toolbar';
 import { BreadcrumbsPopover } from './components/BreadcrumbsPopover';
+import { EasyCloseModal } from './components/EasyCloseModal';
 import { NewTabPage } from './pages/NewTabPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { HistoryPage, addHistoryEntry } from './pages/HistoryPage';
 import { SettingsPage, getCurrentTheme } from './pages/SettingsPage';
 import { CookieJarPage } from './pages/CookieJarPage';
-import { addToJar } from './utils/cookieJar';
+import { addToJar, saveSession, type SessionTab } from './utils/cookieJar';
 import { addCrumb, clearTrail, exportTrail, getTrail, setTrail, type Breadcrumb } from './utils/breadcrumbs';
 import './App.css';
 import './types/electron.d.ts';
@@ -36,6 +37,9 @@ function App() {
   
   // Breadcrumbs state
   const [showBreadcrumbs, setShowBreadcrumbs] = useState(false);
+  
+  // Easy Close modal state
+  const [showEasyCloseModal, setShowEasyCloseModal] = useState(false);
 
   // Initialize breadcrumbs for the first tab
   useEffect(() => {
@@ -370,6 +374,72 @@ function App() {
     setShowBreadcrumbs((prev) => !prev);
   }, []);
 
+  // Easy Close handlers
+  const handleEasyClose = useCallback(() => {
+    setShowEasyCloseModal(true);
+  }, []);
+
+  const handleSaveAndClose = useCallback((sessionName: string) => {
+    // Get all tabs that should be saved (exclude new tab pages)
+    const tabsToSave: SessionTab[] = tabs
+      .filter(tab => tab.url !== 'cookie://newtab')
+      .map(tab => ({
+        url: tab.url,
+        title: tab.title,
+        favicon: tab.favicon,
+        breadcrumbs: exportTrail(tab.id),
+      }));
+    
+    // Save as a session if there are tabs to save
+    if (tabsToSave.length > 0) {
+      saveSession(sessionName, tabsToSave);
+    }
+    
+    // Clear all breadcrumb trails
+    tabs.forEach(tab => clearTrail(tab.id));
+    
+    // Close all tabs and create a fresh new tab
+    const newTabId = Date.now().toString();
+    setTabs([{ id: newTabId, title: 'New Tab', url: 'cookie://newtab' }]);
+    setActiveTabId(newTabId);
+    setInternalPage('newtab');
+    setCurrentUrl('cookie://newtab');
+    setHistoryStack([{ url: 'cookie://newtab', title: 'New Tab' }]);
+    setHistoryIndex(0);
+    addCrumb(newTabId, 'cookie://newtab', 'New Tab');
+    
+    if (window.electronAPI) {
+      window.electronAPI.closeBrowserView();
+    }
+    
+    setShowEasyCloseModal(false);
+  }, [tabs]);
+
+  const handleJustClose = useCallback(() => {
+    // Clear all breadcrumb trails without saving
+    tabs.forEach(tab => clearTrail(tab.id));
+    
+    // Close all tabs and create a fresh new tab
+    const newTabId = Date.now().toString();
+    setTabs([{ id: newTabId, title: 'New Tab', url: 'cookie://newtab' }]);
+    setActiveTabId(newTabId);
+    setInternalPage('newtab');
+    setCurrentUrl('cookie://newtab');
+    setHistoryStack([{ url: 'cookie://newtab', title: 'New Tab' }]);
+    setHistoryIndex(0);
+    addCrumb(newTabId, 'cookie://newtab', 'New Tab');
+    
+    if (window.electronAPI) {
+      window.electronAPI.closeBrowserView();
+    }
+    
+    setShowEasyCloseModal(false);
+  }, [tabs]);
+
+  const handleCancelEasyClose = useCallback(() => {
+    setShowEasyCloseModal(false);
+  }, []);
+
   // Restore a tab from the Cookie Jar
   const handleRestoreTab = useCallback((url: string, title: string, favicon?: string, breadcrumbs?: Breadcrumb[]) => {
     const newTab: Tab = {
@@ -444,6 +514,7 @@ function App() {
         onSettings={handleSettings}
         onCookieJar={handleCookieJar}
         onBreadcrumbs={handleBreadcrumbs}
+        onEasyClose={handleEasyClose}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
       />
@@ -455,6 +526,14 @@ function App() {
           trail={getTrail(activeTabId)}
           onNavigate={navigateToUrl}
           onClose={() => setShowBreadcrumbs(false)}
+        />
+      )}
+      {showEasyCloseModal && (
+        <EasyCloseModal
+          tabs={tabs}
+          onSaveAndClose={handleSaveAndClose}
+          onJustClose={handleJustClose}
+          onCancel={handleCancelEasyClose}
         />
       )}
     </div>

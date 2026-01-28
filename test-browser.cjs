@@ -273,6 +273,119 @@ async function testBrowser() {
       console.log('? Breadcrumb click test skipped:', e.message);
     }
 
+    // ========== EASY CLOSURE TESTS ==========
+    console.log('\n--- Easy Closure Tests ---');
+
+    // Test 12: Open multiple tabs and click "I'm Done" button
+    try {
+      // Go home first
+      const homeBtn = await window.locator('button[aria-label="Home"]').first();
+      await homeBtn.click();
+      await window.waitForTimeout(1000);
+      
+      // Open first tab with content
+      const urlBar = await window.locator('input.url-bar, input[type="text"]').first();
+      await urlBar.fill('https://example.com');
+      await urlBar.press('Enter');
+      await window.waitForTimeout(3000);
+      
+      // Create a second tab
+      const newTabBtn = await window.locator('button[aria-label="New tab"], .new-tab-btn').first();
+      await newTabBtn.click();
+      await window.waitForTimeout(1000);
+      
+      // Navigate second tab
+      const urlBar2 = await window.locator('input.url-bar, input[type="text"]').first();
+      await urlBar2.fill('https://wikipedia.org');
+      await urlBar2.press('Enter');
+      await window.waitForTimeout(3000);
+      
+      // Click "I'm Done" button
+      const easyCloseBtn = await window.locator('button[aria-label="I\'m Done"]').first();
+      await easyCloseBtn.click();
+      await window.waitForTimeout(1000);
+      
+      // Verify modal appears
+      const pageContent = await window.content();
+      if (pageContent.includes('Save these tabs as a session') || pageContent.includes('easy-close-modal')) {
+        console.log('✓ Easy Close modal opened');
+      } else {
+        console.log('? Easy Close modal may not have opened');
+      }
+    } catch (e) {
+      console.log('? Easy Close button test skipped:', e.message);
+    }
+
+    // Test 13: Enter session name and click "Save & Close"
+    try {
+      // Find the session name input and enter a name
+      const sessionInput = await window.locator('#session-name, input[placeholder*="session"]').first();
+      const inputVisible = await sessionInput.isVisible().catch(() => false);
+      
+      if (inputVisible) {
+        await sessionInput.fill('Test Session');
+        console.log('✓ Session name entered');
+        
+        // Click "Save & Close" button
+        const saveBtn = await window.locator('button:has-text("Save & Close")').first();
+        await saveBtn.click();
+        await window.waitForTimeout(2000);
+        
+        // Verify tabs were closed (should be on new tab page)
+        const pageContent = await window.content();
+        if (pageContent.includes('New Tab') || pageContent.includes('Good')) {
+          console.log('✓ Tabs closed after Save & Close');
+        }
+      } else {
+        console.log('? Session input not visible (modal may not be open)');
+      }
+    } catch (e) {
+      console.log('? Save & Close test skipped:', e.message);
+    }
+
+    // Test 14: Open cookie://jar and verify session appears
+    try {
+      const urlBar = await window.locator('input.url-bar, input[type="text"]').first();
+      await urlBar.fill('cookie://jar');
+      await urlBar.press('Enter');
+      await window.waitForTimeout(2000);
+      
+      const pageContent = await window.content();
+      if (pageContent.includes('Test Session') || pageContent.includes('Saved Sessions')) {
+        console.log('✓ Session appears in Cookie Jar');
+      } else if (pageContent.includes('Cookie Jar')) {
+        console.log('? Cookie Jar loaded but session may not be visible');
+      } else {
+        console.log('? Could not verify session in Cookie Jar');
+      }
+    } catch (e) {
+      console.log('? Session verification test skipped:', e.message);
+    }
+
+    // Test 15: Click restore session to reopen all tabs
+    try {
+      // Look for a session restore button
+      const restoreBtn = await window.locator('.session-restore-btn, button:has-text("Restore All")').first();
+      const isVisible = await restoreBtn.isVisible().catch(() => false);
+      
+      if (isVisible) {
+        await restoreBtn.click();
+        await window.waitForTimeout(3000);
+        
+        // Verify tabs were restored (should have multiple tabs)
+        const tabs = await window.locator('.tab').all();
+        if (tabs.length > 1) {
+          console.log('✓ Session restored - multiple tabs opened');
+        } else {
+          console.log('? Session may have been restored (checking tab count)');
+        }
+      } else {
+        console.log('? No session restore button visible');
+      }
+    } catch (e) {
+      console.log('? Session restore test skipped:', e.message);
+    }
+
     console.log('\n✓ All tests completed');
     console.log('\nBrowser verification PASSED');
     

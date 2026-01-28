@@ -6,7 +6,15 @@ import {
   cleanExpired,
   clearJar,
   getTimeAgo,
+  getSessions,
+  saveSession,
+  restoreSession,
+  clearSessions,
+  cleanExpiredSessions,
+  getDefaultSessionName,
   type CookieJarEntry,
+  type Session,
+  type SessionTab,
 } from '../cookieJar';
 
 // Mock localStorage
@@ -214,6 +222,208 @@ describe('cookieJar', () => {
     it('returns singular day', () => {
       const result = getTimeAgo(Date.now() - 1 * 24 * 60 * 60 * 1000); // 1 day ago
       expect(result).toBe('1 day ago');
+    });
+  });
+
+  // ========== SESSION TESTS ==========
+
+  describe('saveSession', () => {
+    it('stores multiple tabs as a group', () => {
+      const tabs: SessionTab[] = [
+        { url: 'https://example1.com', title: 'Site 1' },
+        { url: 'https://example2.com', title: 'Site 2' },
+        { url: 'https://example3.com', title: 'Site 3' },
+      ];
+      
+      const before = Date.now();
+      const session = saveSession('My Session', tabs);
+      const after = Date.now();
+      
+      expect(session.name).toBe('My Session');
+      expect(session.tabs).toHaveLength(3);
+      expect(session.tabs[0].url).toBe('https://example1.com');
+      expect(session.tabs[1].url).toBe('https://example2.com');
+      expect(session.tabs[2].url).toBe('https://example3.com');
+      expect(session.savedAt).toBeGreaterThanOrEqual(before);
+      expect(session.savedAt).toBeLessThanOrEqual(after);
+      
+      // Expires in 7 days
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      expect(session.expiresAt).toBeGreaterThanOrEqual(before + sevenDaysMs);
+      expect(session.expiresAt).toBeLessThanOrEqual(after + sevenDaysMs);
+    });
+
+    it('generates unique IDs for each session', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      const session1 = saveSession('Session 1', tabs);
+      const session2 = saveSession('Session 2', tabs);
+      
+      expect(session1.id).not.toBe(session2.id);
+    });
+
+    it('adds sessions to the beginning (most recent first)', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      saveSession('First Session', tabs);
+      saveSession('Second Session', tabs);
+      
+      const sessions = getSessions();
+      expect(sessions[0].name).toBe('Second Session');
+      expect(sessions[1].name).toBe('First Session');
+    });
+
+    it('uses default name if empty string provided', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      const session = saveSession('', tabs);
+      
+      expect(session.name).toContain('Session -');
+    });
+
+    it('preserves breadcrumbs in session tabs', () => {
+      const breadcrumbs = [
+        { url: 'https://start.com', title: 'Start', timestamp: Date.now() - 1000 },
+        { url: 'https://example.com', title: 'Example', timestamp: Date.now() },
+      ];
+      const tabs: SessionTab[] = [
+        { url: 'https://example.com', title: 'Example', breadcrumbs },
+      ];
+      
+      const session = saveSession('Test', tabs);
+      
+      expect(session.tabs[0].breadcrumbs).toHaveLength(2);
+      expect(session.tabs[0].breadcrumbs![0].url).toBe('https://start.com');
+    });
+  });
+
+  describe('getSessions', () => {
+    it('returns all sessions', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      saveSession('Session 1', tabs);
+      saveSession('Session 2', tabs);
+      saveSession('Session 3', tabs);
+      
+      const sessions = getSessions();
+      expect(sessions).toHaveLength(3);
+    });
+
+    it('returns empty array when no sessions exist', () => {
+      const sessions = getSessions();
+      expect(sessions).toEqual([]);
+    });
+
+    it('returns empty array on invalid JSON', () => {
+      localStorage.setItem('cookie-jar-sessions', 'invalid json');
+      const sessions = getSessions();
+      expect(sessions).toEqual([]);
+    });
+  });
+
+  describe('restoreSession', () => {
+    it('returns all tabs in session', () => {
+      const tabs: SessionTab[] = [
+        { url: 'https://example1.com', title: 'Site 1' },
+        { url: 'https://example2.com', title: 'Site 2' },
+      ];
+      
+      const session = saveSession('Test Session', tabs);
+      const restored = restoreSession(session.id);
+      
+      expect(restored).not.toBeNull();
+      expect(restored).toHaveLength(2);
+      expect(restored![0].url).toBe('https://example1.com');
+      expect(restored![1].url).toBe('https://example2.com');
+    });
+
+    it('removes session from storage after restore', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      const session = saveSession('Test Session', tabs);
+      restoreSession(session.id);
+      
+      const sessions = getSessions();
+      expect(sessions).toHaveLength(0);
+    });
+
+    it('returns null for non-existent session', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      saveSession('Test Session', tabs);
+      
+      const restored = restoreSession('non-existent-id');
+      
+      expect(restored).toBeNull();
+    });
+
+    it('only removes the specified session', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      const session1 = saveSession('Session 1', tabs);
+      const session2 = saveSession('Session 2', tabs);
+      
+      restoreSession(session1.id);
+      
+      const sessions = getSessions();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].id).toBe(session2.id);
+    });
+  });
+
+  describe('cleanExpiredSessions', () => {
+    it('removes expired sessions', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      // Add a valid session
+      saveSession('Valid Session', tabs);
+      
+      // Manually add an expired session
+      const sessions = getSessions();
+      const expiredSession: Session = {
+        id: 'expired-session',
+        name: 'Expired Session',
+        savedAt: Date.now() - 8 * 24 * 60 * 60 * 1000,
+        expiresAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
+        tabs: [{ url: 'https://expired.com', title: 'Expired' }],
+      };
+      sessions.push(expiredSession);
+      localStorage.setItem('cookie-jar-sessions', JSON.stringify(sessions));
+      
+      const expired = cleanExpiredSessions();
+      
+      expect(expired).toHaveLength(1);
+      expect(expired[0].id).toBe('expired-session');
+      
+      const remaining = getSessions();
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].name).toBe('Valid Session');
+    });
+  });
+
+  describe('clearSessions', () => {
+    it('removes all sessions', () => {
+      const tabs: SessionTab[] = [{ url: 'https://example.com', title: 'Test' }];
+      
+      saveSession('Session 1', tabs);
+      saveSession('Session 2', tabs);
+      
+      clearSessions();
+      
+      const sessions = getSessions();
+      expect(sessions).toHaveLength(0);
+    });
+  });
+
+  describe('getDefaultSessionName', () => {
+    it('returns a string containing "Session -"', () => {
+      const name = getDefaultSessionName();
+      expect(name).toContain('Session -');
+    });
+
+    it('includes date/time information', () => {
+      const name = getDefaultSessionName();
+      // Should contain month abbreviation (Jan, Feb, etc.) or time
+      expect(name).toMatch(/Session - \w+ \d+/);
     });
   });
 });

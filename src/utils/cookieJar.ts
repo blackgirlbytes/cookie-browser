@@ -17,7 +17,23 @@ export interface CookieJarEntry {
   breadcrumbs?: Breadcrumb[];
 }
 
+export interface SessionTab {
+  url: string;
+  title: string;
+  favicon?: string;
+  breadcrumbs?: Breadcrumb[];
+}
+
+export interface Session {
+  id: string;
+  name: string;
+  savedAt: number;
+  expiresAt: number;
+  tabs: SessionTab[];
+}
+
 const STORAGE_KEY = 'cookie-jar';
+const SESSIONS_STORAGE_KEY = 'cookie-jar-sessions';
 const EXPIRY_DAYS = 7;
 const EXPIRY_MS = EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
@@ -125,4 +141,123 @@ export function getTimeAgo(timestamp: number): string {
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
   if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
   return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+// ========== SESSION MANAGEMENT ==========
+
+/**
+ * Get all saved sessions
+ */
+export function getSessions(): Session[] {
+  const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+  if (!stored) return [];
+  
+  try {
+    const sessions: Session[] = JSON.parse(stored);
+    return sessions;
+  } catch (e) {
+    console.error('Failed to parse sessions:', e);
+    return [];
+  }
+}
+
+/**
+ * Save sessions to storage
+ */
+function saveSessions(sessions: Session[]): void {
+  localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+}
+
+/**
+ * Generate a default session name based on current date/time
+ */
+export function getDefaultSessionName(): string {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  };
+  return `Session - ${now.toLocaleString('en-US', options)}`;
+}
+
+/**
+ * Save multiple tabs as a session
+ */
+export function saveSession(name: string, tabs: SessionTab[]): Session {
+  const now = Date.now();
+  const session: Session = {
+    id: `session-${now}-${Math.random().toString(36).substr(2, 9)}`,
+    name: name || getDefaultSessionName(),
+    savedAt: now,
+    expiresAt: now + EXPIRY_MS,
+    tabs: tabs.map(tab => ({
+      url: tab.url,
+      title: tab.title || 'Untitled',
+      favicon: tab.favicon,
+      breadcrumbs: tab.breadcrumbs || [],
+    })),
+  };
+  
+  const sessions = getSessions();
+  // Add to beginning (most recent first)
+  sessions.unshift(session);
+  saveSessions(sessions);
+  
+  return session;
+}
+
+/**
+ * Restore a session (removes it from storage and returns all tabs)
+ */
+export function restoreSession(sessionId: string): SessionTab[] | null {
+  const sessions = getSessions();
+  const index = sessions.findIndex(s => s.id === sessionId);
+  
+  if (index === -1) return null;
+  
+  const [session] = sessions.splice(index, 1);
+  saveSessions(sessions);
+  
+  return session.tabs;
+}
+
+/**
+ * Delete a session without restoring
+ */
+export function deleteSession(sessionId: string): boolean {
+  const sessions = getSessions();
+  const index = sessions.findIndex(s => s.id === sessionId);
+  
+  if (index === -1) return false;
+  
+  sessions.splice(index, 1);
+  saveSessions(sessions);
+  
+  return true;
+}
+
+/**
+ * Remove expired sessions
+ */
+export function cleanExpiredSessions(): Session[] {
+  const now = Date.now();
+  const sessions = getSessions();
+  const validSessions = sessions.filter(s => s.expiresAt > now);
+  const expiredSessions = sessions.filter(s => s.expiresAt <= now);
+  
+  if (expiredSessions.length > 0) {
+    saveSessions(validSessions);
+  }
+  
+  return expiredSessions;
+}
+
+/**
+ * Clear all sessions
+ */
+export function clearSessions(): void {
+  localStorage.removeItem(SESSIONS_STORAGE_KEY);
 }

@@ -13,6 +13,7 @@ interface ToolbarProps {
   onSettings: () => void;
   onCookieJar: () => void;
   onBreadcrumbs: () => void;
+  onEasyClose: () => void;
   canGoBack: boolean;
   canGoForward: boolean;
 }
@@ -29,6 +30,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onSettings,
   onCookieJar,
   onBreadcrumbs,
+  onEasyClose,
   canGoBack,
   canGoForward,
 }) => {
@@ -106,6 +108,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </form>
 
       <div className="toolbar-action-buttons">
+        <button
+          className="icon-btn easy-close-btn"
+          onClick={onEasyClose}
+          aria-label="I'm Done"
+          title="Save session and close all tabs"
+        >
+          ✨
+        </button>
         <button
           className="icon-btn"
           onClick={onBreadcrumbs}
