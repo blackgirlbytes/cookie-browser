@@ -5,10 +5,12 @@ import { NewTabPage } from './pages/NewTabPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { HistoryPage, addHistoryEntry } from './pages/HistoryPage';
 import { SettingsPage, getCurrentTheme } from './pages/SettingsPage';
+import { CookieJarPage } from './pages/CookieJarPage';
+import { addToJar } from './utils/cookieJar';
 import './App.css';
 import './types/electron.d.ts';
 
-type InternalPage = 'newtab' | 'bookmarks' | 'history' | 'settings' | null;
+type InternalPage = 'newtab' | 'bookmarks' | 'history' | 'settings' | 'jar' | null;
 
 interface HistoryEntry {
   url: string;
@@ -112,6 +114,7 @@ function App() {
     if (url === 'cookie://bookmarks') return 'bookmarks';
     if (url === 'cookie://history') return 'history';
     if (url === 'cookie://settings') return 'settings';
+    if (url === 'cookie://jar') return 'jar';
     return null;
   };
 
@@ -121,6 +124,7 @@ function App() {
       case 'bookmarks': return 'Bookmarks';
       case 'history': return 'History';
       case 'settings': return 'Settings';
+      case 'jar': return 'Cookie Jar';
       default: return 'Cookie Browser';
     }
   };
@@ -201,6 +205,14 @@ function App() {
   }, [tabs]);
 
   const handleTabClose = useCallback((tabId: string) => {
+    // Find the tab being closed
+    const closingTab = tabs.find((t) => t.id === tabId);
+    
+    // Save to cookie jar if it's not the new tab page
+    if (closingTab && closingTab.url !== 'cookie://newtab') {
+      addToJar(closingTab.url, closingTab.title);
+    }
+    
     if (tabs.length === 1) {
       setTabs([{ id: '1', title: 'New Tab', url: 'cookie://newtab' }]);
       setActiveTabId('1');
@@ -324,6 +336,32 @@ function App() {
     navigateToUrl('cookie://settings');
   }, [navigateToUrl]);
 
+  const handleJar = useCallback(() => {
+    navigateToUrl('cookie://jar');
+  }, [navigateToUrl]);
+
+  const handleRestoreTab = useCallback((url: string, title: string) => {
+    const newTab: Tab = {
+      id: Date.now().toString(),
+      title,
+      url,
+    };
+    setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+    
+    const internal = parseInternalUrl(url);
+    setInternalPage(internal);
+    setCurrentUrl(url);
+    setHistoryStack([{ url, title }]);
+    setHistoryIndex(0);
+    
+    if (!internal && window.electronAPI) {
+      window.electronAPI.navigateToUrl(url);
+    } else if (internal && window.electronAPI) {
+      window.electronAPI.closeBrowserView();
+    }
+  }, []);
+
   const renderInternalPage = () => {
     switch (internalPage) {
       case 'newtab':
@@ -334,6 +372,8 @@ function App() {
         return <HistoryPage onNavigate={navigateToUrl} />;
       case 'settings':
         return <SettingsPage />;
+      case 'jar':
+        return <CookieJarPage onNavigate={navigateToUrl} onRestoreTab={handleRestoreTab} />;
       default:
         return null;
     }
@@ -362,6 +402,7 @@ function App() {
         onBookmarks={handleBookmarks}
         onHistory={handleHistory}
         onSettings={handleSettings}
+        onJar={handleJar}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
       />

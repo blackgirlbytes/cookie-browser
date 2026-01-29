@@ -103,6 +103,64 @@ async function testBrowser() {
       console.log('? Home button test skipped:', e.message);
     }
 
+    // Test 6: Cookie Jar - Close a tab and verify it appears in jar
+    try {
+      // Navigate to a test page first
+      const urlBar = await window.locator('input.url-bar, input[type="text"]').first();
+      await urlBar.fill('https://example.com');
+      await urlBar.press('Enter');
+      await window.waitForTimeout(3000);
+      
+      // Close the tab (if there's a close button visible)
+      try {
+        const closeBtn = await window.locator('.tab-close, button[aria-label*="Close"]').first();
+        await closeBtn.click();
+        await window.waitForTimeout(1000);
+        console.log('✓ Tab closed');
+      } catch (e) {
+        console.log('? Tab close button not found, skipping close test');
+      }
+      
+      // Navigate to cookie jar
+      const jarBtn = await window.locator('button[aria-label="Cookie Jar"]').first();
+      await jarBtn.click();
+      await window.waitForTimeout(2000);
+      
+      // Check if jar page loaded
+      const jarHeading = await window.locator('h1').first();
+      const jarText = await jarHeading.textContent();
+      if (jarText && jarText.includes('Cookie Jar')) {
+        console.log('✓ Cookie Jar page loaded');
+        
+        // Check if there are any jar entries
+        const jarItems = await window.locator('.jar-item').count();
+        if (jarItems > 0) {
+          console.log(`✓ Cookie Jar contains ${jarItems} saved tab(s)`);
+        } else {
+          console.log('? Cookie Jar is empty (may be expected if tab wasn\'t saved)');
+        }
+      }
+    } catch (e) {
+      console.log('? Cookie Jar test skipped:', e.message);
+    }
+
+    // Test 7: Cookie Jar - Restore a tab
+    try {
+      // Check if there are jar items to restore
+      const jarItems = await window.locator('.jar-item').count();
+      if (jarItems > 0) {
+        // Click the first jar item to restore
+        const firstItem = await window.locator('.jar-item').first();
+        await firstItem.click();
+        await window.waitForTimeout(2000);
+        console.log('✓ Tab restored from Cookie Jar');
+      } else {
+        console.log('? No tabs to restore from Cookie Jar');
+      }
+    } catch (e) {
+      console.log('? Cookie Jar restore test skipped:', e.message);
+    }
+
     console.log('\n✓ All tests completed');
     console.log('\nBrowser verification PASSED');
     

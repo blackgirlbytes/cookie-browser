@@ -1,0 +1,145 @@
+.cookie-jar-page {
+  min-height: calc(100vh - 100px);
+  padding: 32px;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--soft-white) 100%);
+}
+
+.jar-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.jar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.jar-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.jar-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.empty-emoji {
+  font-size: 64px;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.empty-state h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.jar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jar-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.jar-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 6px 20px var(--shadow-color);
+}
+
+.jar-item-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.jar-item-icon .favicon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.jar-item-icon .default-icon {
+  font-size: 24px;
+}
+
+.jar-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.jar-item-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jar-item-url {
+  font-size: 13px;
+  color: var(--sage);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jar-item-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.restore-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--dusty-rose);
+  background: var(--soft-white);
+  color: var(--dusty-rose);
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.restore-btn:hover {
+  background: var(--dusty-rose);
+  color: var(--soft-white);
+  transform: rotate(180deg);
+}

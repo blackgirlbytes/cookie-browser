@@ -11,6 +11,7 @@ interface ToolbarProps {
   onBookmarks: () => void;
   onHistory: () => void;
   onSettings: () => void;
+  onJar: () => void;
   canGoBack: boolean;
   canGoForward: boolean;
 }
@@ -25,6 +26,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onBookmarks,
   onHistory,
   onSettings,
+  onJar,
   canGoBack,
   canGoForward,
 }) => {
@@ -102,6 +104,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </form>
 
       <div className="toolbar-action-buttons">
+        <button
+          className="icon-btn"
+          onClick={onJar}
+          aria-label="Cookie Jar"
+          title="View closed tabs"
+        >
+          🫙
+        </button>
         <button
           className="icon-btn"
           onClick={onBookmarks}
