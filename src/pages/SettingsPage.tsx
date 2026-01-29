@@ -3,6 +3,7 @@ import './SettingsPage.css';
 
 interface Settings {
   theme: 'pink' | 'lavender' | 'mint' | 'golden';
+  useCustomRenderer: boolean;
 }
 
 const STORAGE_KEY = 'cookie-settings';
@@ -17,6 +18,7 @@ const themes = [
 export const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<Settings>({
     theme: 'pink',
+    useCustomRenderer: false,
   });
 
   useEffect(() => {
@@ -82,6 +84,30 @@ export const SettingsPage: React.FC = () => {
         </section>
 
         <section className="settings-section card">
+          <h2>🎨 Experimental</h2>
+          <p className="section-description">
+            Try out experimental features. These may be unstable.
+          </p>
+          <div className="toggle-row">
+            <div className="toggle-info">
+              <span className="toggle-label">Custom Rendering Engine</span>
+              <span className="toggle-description">
+                Use Cookie Browser's handcrafted rendering engine for internal pages.
+                This is an experimental feature built from scratch!
+              </span>
+            </div>
+            <button
+              className={`toggle-switch ${settings.useCustomRenderer ? 'toggle-on' : ''}`}
+              onClick={() => updateSettings({ useCustomRenderer: !settings.useCustomRenderer })}
+              data-testid="custom-renderer-toggle"
+              aria-label="Toggle custom renderer"
+            >
+              <span className="toggle-knob" />
+            </button>
+          </div>
+        </section>
+
+        <section className="settings-section card">
           <h2>Data</h2>
           <p className="section-description">
             Manage your browsing data stored locally.
@@ -124,4 +150,18 @@ export const getCurrentTheme = (): string => {
     }
   }
   return 'pink';
+};
+
+// Helper to check if custom renderer is enabled
+export const isCustomRendererEnabled = (): boolean => {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const settings = JSON.parse(stored);
+      return settings.useCustomRenderer || false;
+    } catch (e) {
+      return false;
+    }
+  }
+  return false;
 };
